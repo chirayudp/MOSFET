@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOSFET Channel Visualizer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e24;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px;
+            margin: 0;
+        }
+        h1 { margin-bottom: 5px; }
+        p.subtitle { color: #a0a0b0; margin-bottom: 20px; }
+        
+        .container {
+            background-color: #2b2b36;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            background-color: #ffffff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #363644;
+            padding: 15px 25px;
+            border-radius: 8px;
+        }
+
+        input[type=range] { width: 150px; cursor: pointer; }
+        .val-display { font-weight: bold; color: #4facfe; font-size: 1.2rem; margin-top: 5px; }
+        
+        .status-box {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: #222;
+        }
+        .cutoff { color: #ff4c4c; border-left: 5px solid #ff4c4c; }
+        .triode { color: #4facfe; border-left: 5px solid #4facfe; }
+        .saturation { color: #00f2fe; border-left: 5px solid #00f2fe; }
+    </style>
+</head>
+<body>
+
+    <h1>MOSFET Channel Physics</h1>
+    <p class="subtitle">Interactive Pinch-Off Visualization (Vth = 1.0V)</p>
+
+    <div class="container">
+        <canvas id="mosfetCanvas" width="600" height="300"></canvas>
+
+        <div class="controls">
+            <div class="slider-group">
+                <label for="vgsSlider">Gate-to-Source Voltage (Vgs)</label>
+                <input type="range" id="vgsSlider" min="0" max="5" step="0.1" value="3.0">
+                <div class="val-display" id="vgsVal">3.0 V</div>
+            </div>
+            
+            <div class="slider-group">
+                <label for="vdsSlider">Drain-to-Source Voltage (Vds)</label>
+                <input type="range" id="vdsSlider" min="0" max="5" step="0.1" value="1.0">
+                <div class="val-display" id="vdsVal">1.0 V</div>
+            </div>
+        </div>
+
+        <div id="statusBox" class="status-box">Operating Region</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mosfetCanvas');
+        const ctx = canvas.getContext('2d');
+        const vgsSlider = document.getElementById('vgsSlider');
+        const vdsSlider = document.getElementById('vdsSlider');
+        const vgsVal = document.getElementById('vgsVal');
+        const vdsVal = document.getElementById('vdsVal');
+        const statusBox = document.getElementById('statusBox');
+
+        const Vth = 1.0; // Threshold Voltage
+
+        function drawMosfet() {
+            // Get current slider values
+            const Vgs = parseFloat(vgsSlider.value);
+            const Vds = parseFloat(vdsSlider.value);
+
+            // Update text displays
+            vgsVal.textContent = Vgs.toFixed(1) + ' V';
+            vdsVal.textContent = Vds.toFixed(1) + ' V';
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // --- Draw Device Geometry ---
+            // Substrate (P-type)
+            ctx.fillStyle = '#f0d9b5';
+            ctx.fillRect(50, 100, 500, 150);
+            ctx.fillStyle = '#333';
+            ctx.font = '16px Arial';
+            ctx.fillText('P-Substrate', 260, 230);
+
+            // Source (N+)
+            ctx.fillStyle = '#ffb347';
+            ctx.fillRect(50, 100, 100, 70);
+            ctx.fillStyle = '#000';
+            ctx.fillText('Source', 70, 140);
+            ctx.font = '12px Arial';
+            ctx.fillText('(0V)', 85, 155);
+
+            // Drain (N+)
+            ctx.fillStyle = '#ffb347';
+            ctx.fillRect(450, 100, 100, 70);
+            ctx.fillStyle = '#000';
+            ctx.font = '16px Arial';
+            ctx.fillText('Drain', 480, 140);
+            ctx.font = '12px Arial';
+            ctx.fillText(`(${Vds}V)`, 485, 155);
+
+            // Gate Oxide (SiO2)
+            ctx.fillStyle = '#a0e8af';
+            ctx.fillRect(150, 90, 300, 10);
+            
+            // Gate Metal
+            ctx.fillStyle = '#6c7a89';
+            ctx.fillRect(150, 70, 300, 20);
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.fillText(`Gate (${Vgs}V)`, 260, 85);
+
+            // --- Physics & Channel Drawing Logic ---
+            const Vov = Vgs - Vth; // Overdrive Voltage
+
+            if (Vgs < Vth) {
+                // CUTOFF REGION
+                statusBox.textContent = "Cutoff (No Channel)";
+                statusBox.className = "status-box cutoff";
+            } 
+            else {
+                // CHANNEL EXISTS
+                ctx.fillStyle = '#4facfe'; // Channel color (electrons)
+                
+                // Base thickness scaling factor
+                const scale = 8; 
+                const sourceThickness = Vov * scale;
+
+                ctx.beginPath();
+                ctx.moveTo(150, 100); // Top-left of channel (touching oxide)
+
+                if (Vds < Vov) {
+                    // TRIODE / LINEAR REGION (Channel connects source to drain)
+                    statusBox.textContent = `Triode / Linear (Vds < Vgs - Vth)`;
+                    statusBox.className = "status-box triode";
+                    
+                    const drainThickness = (Vov - Vds) * scale;
+                    
+                    ctx.lineTo(450, 100); // Top-right
+                    ctx.lineTo(450, 100 + drainThickness); // Bottom-right (Drain side)
+                    ctx.lineTo(150, 100 + sourceThickness); // Bottom-left (Source side)
+                } 
+                else {
+                    // SATURATION REGION (Pinch-off)
+                    statusBox.textContent = `Saturation / Pinched-Off (Vds ≥ Vgs - Vth)`;
+                    statusBox.className = "status-box saturation";
+                    
+                    // Calculate where the pinch-off point happens
+                    // Visually, it recedes towards the source as Vds increases past Vov
+                    const pinchOffRatio = Vov / Vds; 
+                    const pinchOffX = 150 + (300 * pinchOffRatio); 
+
+                    ctx.lineTo(pinchOffX, 100); // Top edge to pinch-off point
+                    ctx.lineTo(150, 100 + sourceThickness); // Back to bottom-left
+                    
+                    // Draw a dashed line showing the depletion region electric field sweeping electrons
+                    ctx.strokeStyle = '#ff4c4c';
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(pinchOffX, 105);
+                    ctx.lineTo(450, 120);
+                    ctx.stroke();
+                    ctx.setLineDash([]); // Reset
+                }
+                
+                ctx.fill();
+            }
+        }
+
+        // Add event listeners to update visualization dynamically
+        vgsSlider.addEventListener('input', drawMosfet);
+        vdsSlider.addEventListener('input', drawMosfet);
+
+        // Initial draw
+        drawMosfet();
+    </script>
+</body>
+</html>
