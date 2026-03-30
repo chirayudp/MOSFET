@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOSFET Lab — Interactive Semiconductor Simulations</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Bebas+Neue&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #09090f;
+      --panel: #0e0f18;
+      --panel2: #12141f;
+      --border: #1c1e2e;
+      --border2: #252840;
+      --a1: #00d4ff;
+      --a2: #ff6b35;
+      --a3: #7fff6b;
+      --a4: #c77dff;
+      --text: #dde0ec;
+      --muted: #4a5168;
+      --muted2: #6a7190;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 180px; pointer-events: none; z-index: 0; opacity: 0.6;
+    }
+    .bg-grid {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+      background-size: 48px 48px; pointer-events: none; z-index: 0;
+    }
+    .hero {
+      position: relative; z-index: 1;
+      padding: 72px 32px 56px; text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--a1);
+      border: 1px solid rgba(0,212,255,0.3); padding: 5px 14px; border-radius: 3px;
+      margin-bottom: 24px; background: rgba(0,212,255,0.04);
+      animation: fadeUp 0.5s ease both;
+    }
+    .hero h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.5rem, 9vw, 8rem); letter-spacing: 0.04em; line-height: 0.9; color: #fff;
+      animation: fadeUp 0.5s 0.1s ease both;
+    }
+    .hero h1 span { color: var(--a1); }
+    .hero-sub {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--muted2);
+      margin-top: 20px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.7;
+      animation: fadeUp 0.5s 0.2s ease both;
+    }
+    .stats {
+      position: relative; z-index: 1;
+      display: flex; justify-content: center;
+      border-bottom: 1px solid var(--border);
+      animation: fadeUp 0.5s 0.3s ease both;
+    }
+    .stat-item {
+      flex: 1; max-width: 200px; padding: 22px 20px; text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.04em; color: var(--a1); line-height: 1; }
+    .stat-label { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+    .section { position: relative; z-index: 1; max-width: 1060px; margin: 0 auto; padding: 52px 24px; }
+    .section-header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 32px; }
+    .section-header h2 { font-family: 'Bebas Neue', sans-serif; font-size: 1.9rem; letter-spacing: 0.06em; color: #fff; }
+    .section-header span {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--muted);
+      letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid var(--border2);
+      padding: 3px 10px; border-radius: 3px;
+    }
+    .divider { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border2), transparent); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .sim-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; text-decoration: none; color: inherit;
+      display: flex; flex-direction: column;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      animation: fadeUp 0.5s ease both;
+    }
+    .sim-card:hover {
+      border-color: var(--card-accent, var(--a1));
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px var(--card-accent, var(--a1));
+    }
+    .card-preview {
+      height: 160px; background: #0a0c16; position: relative; overflow: hidden;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-preview canvas { width: 100%; height: 100%; display: block; }
+    .card-preview .overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 50%, #0a0c16 100%);
+      pointer-events: none;
+    }
+    .badge {
+      position: absolute; top: 10px; right: 10px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 3px 8px; border-radius: 3px; border: 1px solid;
+    }
+    .badge.new { color: var(--a3); border-color: rgba(127,255,107,0.3); background: rgba(127,255,107,0.06); }
+    .badge.iv  { color: var(--a1); border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.06); }
+    .card-body { padding: 18px 20px 20px; flex: 1; display: flex; flex-direction: column; }
+    .card-num { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 8px; }
+    .card-title { font-size: 1.05rem; font-weight: 700; color: #fff; line-height: 1.3; margin-bottom: 8px; }
+    .card-desc { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--muted2); line-height: 1.7; flex: 1; }
+    .card-footer { margin-top: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .card-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag { font-family: 'JetBrains Mono', monospace; font-size: 0.58rem; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .tag.t1 { color: var(--a1); background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.18); }
+    .tag.t2 { color: var(--a2); background: rgba(255,107,53,0.08); border: 1px solid rgba(255,107,53,0.18); }
+    .tag.t3 { color: var(--a3); background: rgba(127,255,107,0.08); border: 1px solid rgba(127,255,107,0.18); }
+    .tag.t4 { color: var(--a4); background: rgba(199,125,255,0.08); border: 1px solid rgba(199,125,255,0.18); }
+    .card-arrow { font-size: 1.1rem; color: var(--muted); transition: color 0.2s, transform 0.2s; }
+    .sim-card:hover .card-arrow { color: var(--card-accent, var(--a1)); transform: translateX(4px); }
+    .sim-card.soon { opacity: 0.45; pointer-events: none; cursor: default; }
+    .sim-card:nth-child(1){animation-delay:0.05s} .sim-card:nth-child(2){animation-delay:0.12s}
+    .sim-card:nth-child(3){animation-delay:0.19s} .sim-card:nth-child(4){animation-delay:0.26s}
+    footer {
+      position: relative; z-index: 1; border-top: 1px solid var(--border);
+      padding: 28px 32px; display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    footer p { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--muted); }
+    .footer-mark { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 0.1em; color: var(--muted); }
+    .footer-mark span { color: var(--a1); }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<div class="hero">
+  <div class="hero-tag">// semiconductor · simulations · interactive</div>
+  <h1>MOSFET<br><span>LAB</span></h1>
+  <p class="hero-sub">
+    Hands-on visualizations for MOSFET physics — channel formation, I-V characteristics,
+    operating regions, and device equations. Adjust sliders, watch the physics respond.
+  </p>
+</div>
+
+<div class="stats">
+  <div class="stat-item"><div class="stat-num">3</div><div class="stat-label">Live Sims</div></div>
+  <div class="stat-item"><div class="stat-num">3</div><div class="stat-label">Op. Regions</div></div>
+  <div class="stat-item"><div class="stat-num">∞</div><div class="stat-label">Vth values</div></div>
+  <div class="stat-item"><div class="stat-num">N-CH</div><div class="stat-label">Device type</div></div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <h2>Simulations</h2>
+    <span>N-Channel Enhancement MOSFET</span>
+    <div class="divider"></div>
+  </div>
+  <div class="cards">
+
+    <a class="sim-card" href="sim_channel.html" style="--card-accent:#00d4ff">
+      <div class="card-preview">
+        <canvas id="prev1"></canvas>
+        <div class="overlay"></div>
+        <div class="badge new">Updated</div>
+      </div>
+      <div class="card-body">
+        <div class="card-num">SIM — 01</div>
+        <div class="card-title">MOSFET Physics Explorer<br>Channel &amp; I-V Characteristics</div>
+        <div class="card-desc">
+          Visualize the inversion layer cross-section as it forms, pinches off, and depletes.
+          Paired with a live Id vs Vds output characteristic showing multiple Vgs curves and the
+          operating point dot. Adjustable Vth.
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <div class="tag t1">Channel</div>
+            <div class="tag t2">Pinch-off</div>
+            <div class="tag t1">I-V Curve</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>
+    </a>
+
+    <a class="sim-card" href="sim_ids_vgs.html" style="--card-accent:#7fff6b">
+      <div class="card-preview">
+        <canvas id="prev2"></canvas>
+        <div class="overlay"></div>
+        <div class="badge iv">Transfer</div>
+      </div>
+      <div class="card-body">
+        <div class="card-num">SIM — 02</div>
+        <div class="card-title">I<sub>DS</sub> vs V<sub>GS</sub><br>Transfer Characteristic</div>
+        <div class="card-desc">
+          Sweep the gate voltage and watch drain current rise from zero through saturation
+          and into the triode regime. Region boundaries update dynamically with Vds and Vth.
+          Live operating point readout.
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <div class="tag t3">Transfer</div>
+            <div class="tag t2">Triode</div>
+            <div class="tag t3">Saturation</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>
+    </a>
+
+    <a class="sim-card" href="sim_smallsignal.html" style="--card-accent:#c77dff">
+      <div class="card-preview">
+        <canvas id="prev3"></canvas>
+        <div class="overlay"></div>
+        <div class="badge" style="color:#c77dff;border-color:rgba(199,125,255,0.3);background:rgba(199,125,255,0.06)">New</div>
+      </div>
+      <div class="card-body">
+        <div class="card-num">SIM — 03</div>
+        <div class="card-title">Small-Signal Model<br>&amp; g<sub>m</sub> Visualizer</div>
+        <div class="card-desc">
+          Transconductance gm, output resistance ro, voltage gain |Av| = gm·ro, and transit
+          frequency fT. Includes the small-signal equivalent circuit diagram, gm vs Vgs,
+          gm vs Id, and |Av| vs λ curves. Adjustable k, λ, Cgs.
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            <div class="tag t4">gm</div>
+            <div class="tag t4">ro</div>
+            <div class="tag t4">Small-signal</div>
+            <div class="tag t5" style="color:#ffd166;background:rgba(255,209,102,0.08);border:1px solid rgba(255,209,102,0.2)">fT</div>
+          </div>
+          <div class="card-arrow">→</div>
+        </div>
+      </div>
+    </a>
+
+    <div class="sim-card soon">
+      <div class="card-preview" style="background:#0a0c14;display:flex;align-items:center;justify-content:center;">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none"><polyline points="8,48 20,32 30,38 42,18 56,24" stroke="#252840" stroke-width="1.5" fill="none"/><line x1="8" y1="48" x2="56" y2="48" stroke="#252840" stroke-width="1"/><line x1="8" y1="8" x2="8" y2="48" stroke="#252840" stroke-width="1"/><circle cx="42" cy="18" r="4" stroke="#3a4060" stroke-width="1.5"/></svg>
+      </div>
+      <div class="card-body">
+        <div class="card-num">SIM — 04</div>
+        <div class="card-title">CMOS Inverter<br>VTC &amp; Noise Margins</div>
+        <div class="card-desc">Voltage transfer characteristic of a CMOS inverter. Visualize VOH, VOL, VIH, VIL and compute noise margins NMH and NML interactively. Coming soon.</div>
+        <div class="card-footer">
+          <div class="card-tags"><div class="tag t2">CMOS</div><div class="tag t2">VTC</div></div>
+          <div class="card-arrow" style="opacity:0.3">→</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="padding-top:0">
+  <div class="section-header">
+    <h2>Quick Reference</h2>
+    <span>N-CH Enhancement MOSFET</span>
+    <div class="divider"></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:16px 18px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Cutoff</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;color:#ff6b6b;line-height:2">Vgs &lt; Vth<br>Id = 0</div>
+    </div>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:16px 18px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Triode / Linear</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--a1);line-height:2">Vds &lt; Vgs−Vth<br>Id = k·[(Vov·Vds − Vds²/2)]</div>
+    </div>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:16px 18px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Saturation</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--a2);line-height:2">Vds ≥ Vgs−Vth<br>Id = ½·k·(Vov)²</div>
+    </div>
+    <div style="background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:16px 18px">
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Key relations</div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--a3);line-height:2">Vov = Vgs − Vth<br>gm = 2Id / Vov</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-mark">MOSFET <span>LAB</span></div>
+  <p>N-Channel Enhancement Mode · Interactive Physics · Built with Canvas API</p>
+  <p style="color:var(--border2)">// ECE · Semiconductor Devices</p>
+</footer>
+
+<script>
+(function(){
+  const cvs=document.getElementById('prev1');
+  cvs.width=cvs.offsetWidth||400; cvs.height=cvs.offsetHeight||160;
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height,pl=24,pr=12,pt=12,pb=20,gW=W-pl-pr,gH=H-pt-pb;
+  function idV(vgs,vds,vth=1){const vov=vgs-vth;if(vov<=0)return 0;if(vds<=vov)return(vov*vds-.5*vds*vds);return .5*vov*vov;}
+  const imax=idV(4,99);
+  ['#1a4a6a','#1e6fa0','#22a0cc','#26c8f0','#60dcff'].forEach((col,i)=>{
+    const vgs=2+i*0.5;
+    ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.globalAlpha=0.75;
+    for(let px=0;px<=gW;px++){const vds=(px/gW)*5;const id=idV(vgs,vds);const y=pt+gH-(id/imax)*gH;if(px===0)ctx.moveTo(pl+px,y);else ctx.lineTo(pl+px,y);}
+    ctx.stroke();ctx.globalAlpha=1;
+  });
+  ctx.beginPath();ctx.strokeStyle='rgba(255,107,53,0.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+  let f=true;
+  for(let vds=0;vds<=5;vds+=.1){const id=.5*vds*vds;const x=pl+(vds/5)*gW;const y=pt+gH-(id/imax)*gH;if(f){ctx.moveTo(x,y);f=false;}else ctx.lineTo(x,y);}
+  ctx.stroke();ctx.setLineDash([]);
+})();
+
+(function(){
+  const cvs=document.getElementById('prev3');
+  if(!cvs) return;
+  cvs.width=cvs.offsetWidth||400; cvs.height=cvs.offsetHeight||160;
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height,pl=24,pr=12,pt=12,pb=20,gW=W-pl-pr,gH=H-pt-pb;
+  const k=1,Vth=1,gmMax=k*(5-Vth);
+  ctx.fillStyle='rgba(199,125,255,0.05)'; ctx.fillRect(pl+(Vth/5)*gW,pt,gW*(1-Vth/5),gH);
+  ctx.beginPath(); ctx.strokeStyle='#c77dff'; ctx.lineWidth=2;
+  for(let px=0;px<=gW;px++){const vgs=(px/gW)*5;const vov=vgs-Vth;const gm=vov>0?k*vov:0;const y=pt+gH-(gm/gmMax)*gH;if(px===0)ctx.moveTo(pl+px,y);else ctx.lineTo(pl+px,y);}
+  ctx.stroke();
+  ctx.beginPath(); ctx.strokeStyle='rgba(255,209,102,0.5)'; ctx.lineWidth=1.2;
+  let f3=true;
+  for(let px=2;px<=gW;px++){const vgs=(px/gW)*5;const vov=vgs-Vth;if(vov<0.05)continue;const id=0.5*k*vov*vov;const ro=1/(0.05*id);const y=pt+gH-(Math.min(ro,350)/350)*gH;if(f3){ctx.moveTo(pl+px,y);f3=false;}else ctx.lineTo(pl+px,y);}
+  ctx.stroke();
+  const opX=pl+(2.5/5)*gW,gm_op=k*(2.5-Vth),opY=pt+gH-(gm_op/gmMax)*gH;
+  ctx.beginPath();ctx.arc(opX,opY,4,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+})();
+
+(function(){
+  const cvs=document.getElementById('prev2');
+  cvs.width=cvs.offsetWidth||400; cvs.height=cvs.offsetHeight||160;
+  const ctx=cvs.getContext('2d');
+  const W=cvs.width,H=cvs.height,pl=24,pr=12,pt=12,pb=20,gW=W-pl-pr,gH=H-pt-pb;
+  const vth=1,vds=2.5;
+  function ids(vgs){const vov=vgs-vth;if(vov<=0)return 0;if(vgs<=vth+vds)return .5*vov*vov;return(vov*vds-.5*vds*vds);}
+  const imax=ids(5);
+  ctx.fillStyle='rgba(255,76,76,0.06)';ctx.fillRect(pl,pt,(vth/5)*gW,gH);
+  ctx.fillStyle='rgba(255,107,53,0.06)';ctx.fillRect(pl+(vth/5)*gW,pt,((vth+vds)/5-(vth/5))*gW,gH);
+  ctx.fillStyle='rgba(0,212,255,0.06)';ctx.fillRect(pl+((vth+vds)/5)*gW,pt,gW*(1-(vth+vds)/5),gH);
+  ctx.beginPath();ctx.strokeStyle='#ffb060';ctx.lineWidth=2;
+  for(let px=0;px<=gW;px++){const vgs=(px/gW)*5;const id=ids(vgs);const y=pt+gH-(id/imax)*gH;if(px===0)ctx.moveTo(pl+px,y);else ctx.lineTo(pl+px,y);}
+  ctx.stroke();
+  const opX=pl+(2.8/5)*gW,opY=pt+gH-(ids(2.8)/imax)*gH;
+  ctx.beginPath();ctx.arc(opX,opY,4,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+})();
+</script>
+</body>
+</html>

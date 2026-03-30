@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOSFET Turn-On Regions</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e24;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px;
+            margin: 0;
+        }
+        h1 { margin-bottom: 5px; text-align: center; }
+        p.subtitle { color: #a0a0b0; margin-bottom: 20px; text-align: center;}
+        
+        .container {
+            background-color: #2b2b36;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 700px;
+        }
+
+        canvas {
+            background-color: #222;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+            width: 100%;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #363644;
+            padding: 15px 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        input[type=range] { width: 100%; cursor: pointer; margin-top: 10px; }
+        .val-display { font-weight: bold; color: #4facfe; font-size: 1.2rem; margin-top: 5px; }
+        
+        .status-box {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            background: #111;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>MOSFET I<sub>DS</sub> vs V<sub>GS</sub> Curve</h1>
+    <p class="subtitle">Proving the device always turns on in Saturation (Vth = 1.0V)</p>
+
+    <div class="container">
+        <canvas id="graphCanvas" width="700" height="400"></canvas>
+
+        <div class="controls">
+            <div class="slider-group">
+                <label for="vdsSlider">Fixed Drain Volts (V<sub>DS</sub>)</label>
+                <input type="range" id="vdsSlider" min="0.5" max="5" step="0.1" value="2.0">
+                <div class="val-display" id="vdsVal">2.0 V</div>
+            </div>
+            
+            <div class="slider-group">
+                <label for="vgsSlider">Sweep Gate Volts (V<sub>GS</sub>)</label>
+                <input type="range" id="vgsSlider" min="0" max="5" step="0.1" value="1.5">
+                <div class="val-display" id="vgsVal">1.5 V</div>
+            </div>
+        </div>
+
+        <div id="statusBox" class="status-box">Operating Region</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('graphCanvas');
+        const ctx = canvas.getContext('2d');
+        const vgsSlider = document.getElementById('vgsSlider');
+        const vdsSlider = document.getElementById('vdsSlider');
+        const vgsVal = document.getElementById('vgsVal');
+        const vdsVal = document.getElementById('vdsVal');
+        const statusBox = document.getElementById('statusBox');
+
+        // MOSFET Parameters
+        const Vth = 1.0; 
+        const k = 1.0; // un*Cox*W/L scale factor
+        
+        // Graph boundaries
+        const padding = 50;
+        const width = canvas.width - padding * 2;
+        const height = canvas.height - padding * 2;
+        const maxX = 5; // Max Vgs
+        const maxY = 10; // Max Ids to display
+
+        // Map values to canvas coordinates
+        function mapX(vgs) { return padding + (vgs / maxX) * width; }
+        function mapY(ids) { return canvas.height - padding - (ids / maxY) * height; }
+
+        // Calculate Current (Ids) based on region equations
+        function calculateIds(vgs, vds) {
+            if (vgs < Vth) {
+                return 0; // Cutoff
+            } else if (vgs <= Vth + vds) {
+                return 0.5 * k * Math.pow(vgs - Vth, 2); // Saturation
+            } else {
+                return k * ((vgs - Vth) * vds - 0.5 * Math.pow(vds, 2)); // Triode
+            }
+        }
+
+        function drawGraph() {
+            const Vgs = parseFloat(vgsSlider.value);
+            const Vds = parseFloat(vdsSlider.value);
+
+            vgsVal.textContent = Vgs.toFixed(1) + ' V';
+            vdsVal.textContent = Vds.toFixed(1) + ' V';
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. DRAW BACKGROUND ZONES
+            const boundaryX = Vth + Vds;
+
+            // Cutoff Zone (Reddish)
+            ctx.fillStyle = 'rgba(255, 76, 76, 0.1)';
+            ctx.fillRect(mapX(0), padding, mapX(Vth) - mapX(0), height);
+            
+            // Saturation Zone (Blueish)
+            ctx.fillStyle = 'rgba(0, 242, 254, 0.1)';
+            const satWidth = Math.min(mapX(boundaryX) - mapX(Vth), mapX(maxX) - mapX(Vth));
+            if(satWidth > 0) ctx.fillRect(mapX(Vth), padding, satWidth, height);
+
+            // Triode Zone (Greenish) - only if boundary is within graph
+            if (boundaryX < maxX) {
+                ctx.fillStyle = 'rgba(79, 172, 254, 0.2)';
+                ctx.fillRect(mapX(boundaryX), padding, mapX(maxX) - mapX(boundaryX), height);
+            }
+
+            // Zone Labels
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.font = '14px Arial';
+            ctx.fillText('CUTOFF', mapX(Vth/2) - 30, padding + 20);
+            if (boundaryX <= maxX) {
+                ctx.fillText('SATURATION', mapX((Vth + boundaryX)/2) - 45, padding + 20);
+                ctx.fillText('TRIODE', mapX((boundaryX + maxX)/2) - 25, padding + 20);
+            } else {
+                ctx.fillText('SATURATION', mapX((Vth + maxX)/2) - 45, padding + 20);
+            }
+
+            // 2. DRAW AXES
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Y-Axis (Ids)
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, canvas.height - padding);
+            // X-Axis (Vgs)
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            ctx.stroke();
+
+            // Labels
+            ctx.fillStyle = '#fff';
+            ctx.fillText('Vgs (V)', canvas.width / 2, canvas.height - 15);
+            ctx.save();
+            ctx.translate(20, canvas.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('Ids (mA)', -20, 0);
+            ctx.restore();
+
+            // 3. DRAW THE IDS CURVE
+            ctx.strokeStyle = '#ffb347';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let x = 0; x <= maxX; x += 0.05) {
+                let y = calculateIds(x, Vds);
+                if (x === 0) ctx.moveTo(mapX(x), mapY(y));
+                else ctx.lineTo(mapX(x), mapY(y));
+            }
+            ctx.stroke();
+
+            // 4. DRAW THE ACTIVE POINT (Based on Vgs Slider)
+            const activeIds = calculateIds(Vgs, Vds);
+            const dotX = mapX(Vgs);
+            const dotY = mapY(activeIds);
+
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(dotX, dotY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw dashed lines to axes for the point
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(dotX, dotY);
+            ctx.lineTo(dotX, canvas.height - padding); // Down to X
+            ctx.moveTo(dotX, dotY);
+            ctx.lineTo(padding, dotY); // Left to Y
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dash
+
+            // 5. UPDATE STATUS BOX
+            if (Vgs < Vth) {
+                statusBox.textContent = "Region: CUTOFF (Ids = 0)";
+                statusBox.style.color = "#ff4c4c";
+                statusBox.style.borderLeft = "5px solid #ff4c4c";
+            } else if (Vgs <= boundaryX) {
+                statusBox.textContent = `Region: SATURATION (Ids = ${activeIds.toFixed(2)} mA)`;
+                statusBox.style.color = "#00f2fe";
+                statusBox.style.borderLeft = "5px solid #00f2fe";
+            } else {
+                statusBox.textContent = `Region: TRIODE / LINEAR (Ids = ${activeIds.toFixed(2)} mA)`;
+                statusBox.style.color = "#4facfe";
+                statusBox.style.borderLeft = "5px solid #4facfe";
+            }
+        }
+
+        // Listen for slider changes
+        vgsSlider.addEventListener('input', drawGraph);
+        vdsSlider.addEventListener('input', drawGraph);
+
+        // Initial render
+        drawGraph();
+    </script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOSFET Physics Explorer — MOSFET Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --panel: #131620;
+      --border: #1f2535;
+      --accent1: #00d4ff;
+      --accent2: #ff6b35;
+      --accent3: #7fff6b;
+      --text: #e8eaf0;
+      --muted: #5a6070;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      padding: 28px 20px;
+    }
+    a.back {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 6px;
+      margin-bottom: 24px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    a.back:hover { color: var(--accent1); border-color: var(--accent1); }
+    header { text-align: center; margin-bottom: 28px; }
+    header h1 {
+      font-size: 2rem; font-weight: 800;
+      background: linear-gradient(90deg, var(--accent1), var(--accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+    }
+    .card-title {
+      font-size: 0.7rem;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    canvas { display: block; border-radius: 8px; }
+    #mosfetCanvas { background: #0a0e18; width: 100%; }
+    #ivCanvas { background: #0a0e18; width: 100%; }
+
+    .sliders { display: flex; flex-direction: column; gap: 16px; margin-top: 18px; }
+    .slider-row { display: flex; align-items: center; gap: 12px; }
+    .slider-label { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); width: 42px; flex-shrink: 0; }
+    .slider-label span { display: block; font-size: 0.65rem; color: #3a4050; }
+    input[type=range] { flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; outline: none; cursor: pointer; }
+    input[type=range].vgs-slider { background: linear-gradient(90deg, var(--accent1) var(--pct, 0%), #1f2535 var(--pct, 0%)); }
+    input[type=range].vds-slider { background: linear-gradient(90deg, var(--accent2) var(--pct, 0%), #1f2535 var(--pct, 0%)); }
+    input[type=range].vth-slider { background: linear-gradient(90deg, var(--accent3) var(--pct, 0%), #1f2535 var(--pct, 0%)); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--bg); cursor: pointer; }
+    input[type=range].vgs-slider::-webkit-slider-thumb { background: var(--accent1); }
+    input[type=range].vds-slider::-webkit-slider-thumb { background: var(--accent2); }
+    input[type=range].vth-slider::-webkit-slider-thumb { background: var(--accent3); }
+    .val { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; font-weight: 700; width: 46px; text-align: right; flex-shrink: 0; }
+    .val.c1 { color: var(--accent1); } .val.c2 { color: var(--accent2); } .val.c3 { color: var(--accent3); }
+
+    .status { margin-top: 16px; padding: 12px 16px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; border-left: 3px solid; transition: all 0.25s; }
+    .status.cutoff     { border-color: #ff4c4c; background: rgba(255,76,76,0.07); color: #ff4c4c; }
+    .status.triode     { border-color: var(--accent1); background: rgba(0,212,255,0.07); color: var(--accent1); }
+    .status.saturation { border-color: var(--accent2); background: rgba(255,107,53,0.07); color: var(--accent2); }
+
+    .eq-box { margin-top: 12px; padding: 10px 14px; background: #0a0c14; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); line-height: 1.8; }
+    .eq-box b { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<a class="back" href="index.html">← Back to MOSFET Lab</a>
+
+<header>
+  <h1>MOSFET Physics Explorer</h1>
+  <p>N-Channel Enhancement Mode · Interactive Channel &amp; I-V Visualization</p>
+</header>
+
+<div class="layout">
+  <div class="card">
+    <div class="card-title">Channel Cross-Section</div>
+    <canvas id="mosfetCanvas" height="220"></canvas>
+    <div class="sliders">
+      <div class="slider-row">
+        <div class="slider-label">Vgs<span>Gate</span></div>
+        <input type="range" id="vgsSlider" class="vgs-slider" min="0" max="5" step="0.1" value="3.0">
+        <div class="val c1" id="vgsVal">3.0V</div>
+      </div>
+      <div class="slider-row">
+        <div class="slider-label">Vds<span>Drain</span></div>
+        <input type="range" id="vdsSlider" class="vds-slider" min="0" max="5" step="0.1" value="1.0">
+        <div class="val c2" id="vdsVal">1.0V</div>
+      </div>
+      <div class="slider-row">
+        <div class="slider-label">Vth<span>Thresh</span></div>
+        <input type="range" id="vthSlider" class="vth-slider" min="0.2" max="2.5" step="0.1" value="1.0">
+        <div class="val c3" id="vthVal">1.0V</div>
+      </div>
+    </div>
+    <div id="statusBox" class="status triode">Operating Region: —</div>
+    <div class="eq-box" id="eqBox">—</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">I-V Characteristics (Id vs Vds)</div>
+    <canvas id="ivCanvas" height="220"></canvas>
+    <div class="eq-box" style="margin-top:14px">
+      <b>Triode:</b> Id = μCox(W/L)·[(Vgs−Vth)·Vds − Vds²/2]<br>
+      <b>Saturation:</b> Id = ½·μCox(W/L)·(Vgs−Vth)²<br>
+      <b>Pinch-off boundary:</b> Vds = Vgs − Vth
+    </div>
+  </div>
+</div>
+
+<script>
+const mosCvs = document.getElementById('mosfetCanvas');
+const mosCtx = mosCvs.getContext('2d');
+const ivCvs  = document.getElementById('ivCanvas');
+const ivCtx  = ivCvs.getContext('2d');
+const vgsSlider = document.getElementById('vgsSlider');
+const vdsSlider = document.getElementById('vdsSlider');
+const vthSlider = document.getElementById('vthSlider');
+
+function resizeCanvas(cvs) { cvs.width = cvs.offsetWidth; cvs.height = parseInt(cvs.getAttribute('height')); }
+
+function drawDevice() {
+  resizeCanvas(mosCvs);
+  const W = mosCvs.width, H = mosCvs.height;
+  const ctx = mosCtx;
+  ctx.clearRect(0, 0, W, H);
+  const Vgs = parseFloat(vgsSlider.value);
+  const Vds = parseFloat(vdsSlider.value);
+  const Vth = parseFloat(vthSlider.value);
+  const Vov = Vgs - Vth;
+  const padL=30, padR=30, bodyTop=55;
+  const bodyH = H - bodyTop - 18;
+  const sdW=90;
+  const chL = padL + sdW, chR = W - padR - sdW, chW = chR - chL;
+  const ifaceY = bodyTop;
+  const oxH=10, gateH=20;
+
+  ctx.fillStyle='#162214'; ctx.fillRect(padL, bodyTop, W-padL-padR, bodyH);
+  ctx.fillStyle='#2a3d28'; ctx.font='11px JetBrains Mono,monospace';
+  ctx.fillText('P-Substrate', W/2-36, bodyTop+bodyH-8);
+
+  ctx.fillStyle='#2d1e0a'; ctx.fillRect(padL, bodyTop, sdW, 60);
+  ctx.fillStyle='#ffb347'; ctx.font='bold 11px Syne,sans-serif';
+  ctx.fillText('Source', padL+18, bodyTop+25);
+  ctx.fillStyle='#888'; ctx.font='10px JetBrains Mono,monospace';
+  ctx.fillText('0 V', padL+30, bodyTop+42);
+
+  ctx.fillStyle='#2d1e0a'; ctx.fillRect(chR, bodyTop, sdW, 60);
+  ctx.fillStyle='#ffb347'; ctx.font='bold 11px Syne,sans-serif';
+  ctx.fillText('Drain', chR+20, bodyTop+25);
+  ctx.fillStyle='#888'; ctx.font='10px JetBrains Mono,monospace';
+  ctx.fillText(Vds.toFixed(1)+' V', chR+18, bodyTop+42);
+
+  ctx.fillStyle='#0d2e1f'; ctx.fillRect(chL, bodyTop-oxH, chW, oxH);
+  ctx.fillStyle='#1a5c3a'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.fillText('SiO₂', chL+chW/2-12, bodyTop-1);
+
+  ctx.fillStyle='#1a1a30'; ctx.fillRect(chL, bodyTop-oxH-gateH, chW, gateH);
+  ctx.strokeStyle='#3a3a5c'; ctx.lineWidth=1; ctx.strokeRect(chL, bodyTop-oxH-gateH, chW, gateH);
+  ctx.fillStyle='#a0a8cc'; ctx.font='bold 11px Syne,sans-serif';
+  ctx.fillText(`Gate  (Vgs = ${Vgs.toFixed(1)} V)`, chL+chW/2-60, bodyTop-oxH-5);
+
+  if (Vgs < Vth) {
+    ctx.save(); ctx.setLineDash([4,5]); ctx.strokeStyle='rgba(255,76,76,0.4)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(chL, ifaceY+2); ctx.lineTo(chR, ifaceY+2); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle='rgba(255,76,76,0.55)'; ctx.font='10px JetBrains Mono,monospace';
+    ctx.fillText('No inversion layer', chL+chW/2-52, ifaceY+18);
+    document.getElementById('statusBox').textContent='CUTOFF  —  Vgs < Vth, channel not formed';
+    document.getElementById('statusBox').className='status cutoff';
+    document.getElementById('eqBox').innerHTML=`<b>Vgs</b> = ${Vgs.toFixed(1)} V &lt; <b>Vth</b> = ${Vth.toFixed(1)} V<br>Id = 0`;
+    return;
+  }
+
+  const maxThk=28;
+  const srcThk = Math.min(Vov/4.0*maxThk, maxThk);
+
+  if (Vds <= Vov) {
+    const drnThk = Math.max((Vov-Vds)/4.0*maxThk, 1);
+    ctx.beginPath();
+    ctx.moveTo(chL, ifaceY); ctx.lineTo(chR, ifaceY);
+    ctx.lineTo(chR, ifaceY+drnThk); ctx.lineTo(chL, ifaceY+srcThk); ctx.closePath();
+    const grad = ctx.createLinearGradient(chL, 0, chR, 0);
+    grad.addColorStop(0, 'rgba(0,212,255,0.85)');
+    grad.addColorStop(1, `rgba(0,212,255,${Math.max(0.15,drnThk/srcThk*0.85).toFixed(2)})`);
+    ctx.fillStyle=grad; ctx.fill();
+    const nArr=5;
+    for (let i=0;i<nArr;i++) {
+      const t=(i+0.5)/nArr, x=chL+t*chW, th=srcThk+(drnThk-srcThk)*t, y=ifaceY+th/2;
+      arrow(ctx, x-10, y, x+10, y, 'rgba(0,212,255,0.7)');
+    }
+    document.getElementById('statusBox').textContent='TRIODE / LINEAR  —  Vds ≤ Vgs − Vth';
+    document.getElementById('statusBox').className='status triode';
+    const Id=0.5*Vov*Vds-0.25*Vds*Vds;
+    document.getElementById('eqBox').innerHTML=`<b>Vgs−Vth</b> = ${Vov.toFixed(2)} V &nbsp;|&nbsp; <b>Vds</b> = ${Vds.toFixed(1)} V<br>Id ∝ (Vgs−Vth)·Vds − Vds²/2 &nbsp;≈ ${Id.toFixed(3)} (norm.)`;
+  } else {
+    const xpo = chL + (Vov/Math.max(Vds,0.01))*chW;
+    ctx.beginPath();
+    ctx.moveTo(chL, ifaceY); ctx.lineTo(xpo, ifaceY); ctx.lineTo(chL, ifaceY+srcThk); ctx.closePath();
+    const grad = ctx.createLinearGradient(chL, 0, xpo, 0);
+    grad.addColorStop(0,'rgba(0,212,255,0.85)'); grad.addColorStop(1,'rgba(0,212,255,0.0)');
+    ctx.fillStyle=grad; ctx.fill();
+    ctx.save(); ctx.setLineDash([4,4]);
+    ctx.strokeStyle='rgba(255,107,53,0.6)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(xpo,ifaceY+2); ctx.lineTo(chR,ifaceY+2); ctx.stroke(); ctx.restore();
+    ctx.fillStyle='rgba(255,107,53,0.7)'; ctx.font='9px JetBrains Mono,monospace';
+    const depW=chR-xpo; if(depW>30) ctx.fillText('depletion', xpo+depW/2-22, ifaceY+16);
+    ctx.strokeStyle='rgba(255,107,53,0.9)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(xpo,ifaceY-4); ctx.lineTo(xpo,ifaceY+srcThk+4); ctx.stroke();
+    ctx.fillStyle='rgba(255,107,53,0.9)'; ctx.font='9px JetBrains Mono,monospace';
+    ctx.fillText('pinch-off', xpo-20, ifaceY+srcThk+15);
+    const nArr=4;
+    for (let i=0;i<nArr;i++) {
+      const t=(i+0.5)/nArr, x=chL+t*(xpo-chL), th=srcThk*(1-t), y=ifaceY+th/2;
+      if (th>3) arrow(ctx, x-8, y, x+8, y, 'rgba(0,212,255,0.7)');
+    }
+    document.getElementById('statusBox').textContent='SATURATION  —  Vds ≥ Vgs − Vth (channel pinched off)';
+    document.getElementById('statusBox').className='status saturation';
+    const Id=0.5*Vov*Vov;
+    document.getElementById('eqBox').innerHTML=`<b>Vgs−Vth</b> = ${Vov.toFixed(2)} V &nbsp;|&nbsp; <b>Vds</b> = ${Vds.toFixed(1)} V<br>Id ∝ ½·(Vgs−Vth)² &nbsp;≈ ${Id.toFixed(3)} (norm.)`;
+  }
+}
+
+function arrow(ctx, x1, y1, x2, y2, color) {
+  const hs=5, dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy);
+  if (len<6) return;
+  const ux=dx/len, uy=dy/len;
+  ctx.fillStyle=color; ctx.beginPath();
+  ctx.moveTo(x2,y2); ctx.lineTo(x2-hs*ux-hs*0.5*uy, y2-hs*uy+hs*0.5*ux);
+  ctx.lineTo(x2-hs*ux+hs*0.5*uy, y2-hs*uy-hs*0.5*ux); ctx.closePath(); ctx.fill();
+}
+
+function drawIV() {
+  resizeCanvas(ivCvs);
+  const W=ivCvs.width, H=ivCvs.height;
+  const ctx=ivCtx;
+  ctx.clearRect(0,0,W,H);
+  const Vgs_cur=parseFloat(vgsSlider.value), Vds_cur=parseFloat(vdsSlider.value), Vth=parseFloat(vthSlider.value);
+  const pl=52, pr=18, pt=18, pb=36;
+  const gW=W-pl-pr, gH=H-pt-pb;
+  const VDS_MAX=5.0;
+  const palette=['#1a6a8a','#1e8fb0','#22b4d8','#26d0f5','#60e0ff','#a0eeff'];
+  const vgsLevels=[Vth+0.5,Vth+1.0,Vth+1.5,Vth+2.0,Vth+2.5,Vth+3.0].filter(v=>v<=5.0);
+  function idVal(Vgs,Vds) { const vov=Vgs-Vth; if(vov<=0)return 0; if(Vds<=vov)return(vov*Vds-0.5*Vds*Vds); return 0.5*vov*vov; }
+  const id_max=idVal(Math.min(5.0,Vth+3.0),99);
+  ctx.strokeStyle='#2a3040'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pl,pt); ctx.lineTo(pl,pt+gH); ctx.lineTo(pl+gW,pt+gH); ctx.stroke();
+  ctx.fillStyle='#556070'; ctx.font='10px JetBrains Mono,monospace';
+  for(let v=0;v<=5;v++){const x=pl+(v/VDS_MAX)*gW;ctx.fillText(v,x-3,pt+gH+14);}
+  ctx.fillStyle='#8090a0'; ctx.font='11px Syne,sans-serif';
+  ctx.fillText('Vds (V)',pl+gW/2-20,H-2);
+  ctx.save(); ctx.translate(12,pt+gH/2+16); ctx.rotate(-Math.PI/2); ctx.fillText('Id (norm.)',0,0); ctx.restore();
+  for(let f=0.25;f<=1.01;f+=0.25){const y=pt+gH-f*gH;ctx.strokeStyle='#1a2030';ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(pl,y);ctx.lineTo(pl+gW,y);ctx.stroke();ctx.setLineDash([]);}
+  vgsLevels.forEach((Vgs,idx)=>{
+    const vov=Vgs-Vth; if(vov<=0)return;
+    const color=palette[Math.min(idx,palette.length-1)];
+    const isCurrent=Math.abs(Vgs-Vgs_cur)<0.05;
+    ctx.beginPath(); ctx.strokeStyle=isCurrent?'#ffffff':color; ctx.lineWidth=isCurrent?2.5:1.2; ctx.globalAlpha=isCurrent?1.0:0.45;
+    for(let px=0;px<=gW;px++){const vds=(px/gW)*VDS_MAX;const id=idVal(Vgs,vds);const y=pt+gH-(id/id_max)*gH;if(px===0)ctx.moveTo(pl+px,Math.max(pt,Math.min(pt+gH,y)));else ctx.lineTo(pl+px,Math.max(pt,Math.min(pt+gH,y)));}
+    ctx.stroke(); ctx.globalAlpha=1.0;
+    const id_end=idVal(Vgs,VDS_MAX);const yLabel=pt+gH-(id_end/id_max)*gH;
+    ctx.fillStyle=isCurrent?'#ffffff':color; ctx.font=(isCurrent?'bold ':'')+'9px JetBrains Mono,monospace';
+    ctx.fillText(`${Vgs.toFixed(1)}V`,pl+gW+2,Math.max(pt+8,Math.min(pt+gH,yLabel+3)));
+  });
+  ctx.beginPath(); ctx.strokeStyle='rgba(255,107,53,0.55)'; ctx.lineWidth=1.2; ctx.setLineDash([5,4]);
+  let first=true;
+  for(let vds=0;vds<=VDS_MAX;vds+=0.05){const Vov_po=vds;const Vgs_po=Vov_po+Vth;if(Vgs_po>5.0)break;const id=0.5*Vov_po*Vov_po;const x=pl+(vds/VDS_MAX)*gW;const y=pt+gH-(id/id_max)*gH;if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);}
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,107,53,0.7)'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.fillText('pinch-off',pl+60,pt+12);
+  const vov_cur=Vgs_cur-Vth;
+  if(vov_cur>0){const id_op=idVal(Vgs_cur,Vds_cur);const xop=pl+(Vds_cur/VDS_MAX)*gW;const yop=pt+gH-(id_op/id_max)*gH;ctx.beginPath();ctx.arc(xop,Math.max(pt+4,Math.min(pt+gH-4,yop)),5.5,0,Math.PI*2);ctx.fillStyle='#ffffff';ctx.fill();}
+}
+
+function updateSliderFill(sl) {
+  const min=parseFloat(sl.min),max=parseFloat(sl.max),val=parseFloat(sl.value);
+  sl.style.setProperty('--pct',((val-min)/(max-min)*100).toFixed(1)+'%');
+}
+
+function update() {
+  [vgsSlider,vdsSlider,vthSlider].forEach(updateSliderFill);
+  document.getElementById('vgsVal').textContent=parseFloat(vgsSlider.value).toFixed(1)+'V';
+  document.getElementById('vdsVal').textContent=parseFloat(vdsSlider.value).toFixed(1)+'V';
+  document.getElementById('vthVal').textContent=parseFloat(vthSlider.value).toFixed(1)+'V';
+  drawDevice(); drawIV();
+}
+
+[vgsSlider,vdsSlider,vthSlider].forEach(s=>s.addEventListener('input',update));
+window.addEventListener('resize',update);
+update();
+</script>
+</body>
+</html>

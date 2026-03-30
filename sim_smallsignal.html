@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Small-Signal Model & gm — MOSFET Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Bebas+Neue&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0d0f14;
+      --panel: #131620;
+      --panel2: #0e1018;
+      --border: #1f2535;
+      --border2: #252840;
+      --a1: #00d4ff;
+      --a2: #ff6b35;
+      --a3: #7fff6b;
+      --a4: #c77dff;
+      --a5: #ffd166;
+      --text: #e8eaf0;
+      --muted: #5a6070;
+      --muted2: #7a8090;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      padding: 28px 20px 48px;
+    }
+
+    /* grain */
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      background-size: 180px; pointer-events: none; z-index: 0; opacity: 0.5;
+    }
+    .bg-grid {
+      position: fixed; inset: 0;
+      background-image: linear-gradient(rgba(199,125,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(199,125,255,0.02) 1px, transparent 1px);
+      background-size: 48px 48px; pointer-events: none; z-index: 0;
+    }
+
+    a.back {
+      position: relative; z-index: 1;
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      color: var(--muted); text-decoration: none;
+      border: 1px solid var(--border); padding: 6px 14px; border-radius: 6px;
+      margin-bottom: 24px; transition: color 0.2s, border-color 0.2s;
+    }
+    a.back:hover { color: var(--a4); border-color: var(--a4); }
+
+    header {
+      position: relative; z-index: 1;
+      text-align: center; margin-bottom: 32px;
+    }
+    header .sim-num {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--a4);
+      border: 1px solid rgba(199,125,255,0.3); padding: 4px 12px;
+      border-radius: 3px; background: rgba(199,125,255,0.05);
+      display: inline-block; margin-bottom: 14px;
+    }
+    header h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.4rem, 6vw, 4.5rem);
+      letter-spacing: 0.05em; line-height: 1; color: #fff;
+    }
+    header h1 span { color: var(--a4); }
+    header p {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+      color: var(--muted2); margin-top: 10px; line-height: 1.7;
+    }
+
+    /* ── Layout ── */
+    .wrap { position: relative; z-index: 1; max-width: 1140px; margin: 0 auto; }
+
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .grid-full { margin-bottom: 14px; }
+    @media(max-width:900px) { .grid-3,.grid-2 { grid-template-columns:1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px;
+    }
+    .card-title {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+      letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Metric chips ── */
+    .metric {
+      display: flex; flex-direction: column; align-items: center;
+      text-align: center; padding: 6px 0;
+    }
+    .metric-val {
+      font-family: 'Bebas Neue', sans-serif; font-size: 2.6rem;
+      letter-spacing: 0.03em; line-height: 1;
+      transition: color 0.3s;
+    }
+    .metric-unit {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.68rem;
+      color: var(--muted2); margin-top: 2px;
+    }
+    .metric-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.62rem;
+      color: var(--muted); margin-top: 6px; letter-spacing: 0.08em;
+    }
+
+    /* ── Sliders ── */
+    .sliders { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    .slider-label {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+      color: var(--muted); width: 46px; flex-shrink: 0; line-height: 1.3;
+    }
+    .slider-label small { display: block; font-size: 0.58rem; color: #3a4050; }
+    input[type=range] {
+      flex: 1; -webkit-appearance: none; height: 4px;
+      border-radius: 2px; outline: none; cursor: pointer;
+    }
+    input[type=range].s1 { background: linear-gradient(90deg, var(--a1) var(--pct,0%), #1f2535 var(--pct,0%)); }
+    input[type=range].s2 { background: linear-gradient(90deg, var(--a2) var(--pct,0%), #1f2535 var(--pct,0%)); }
+    input[type=range].s3 { background: linear-gradient(90deg, var(--a3) var(--pct,0%), #1f2535 var(--pct,0%)); }
+    input[type=range].s4 { background: linear-gradient(90deg, var(--a4) var(--pct,0%), #1f2535 var(--pct,0%)); }
+    input[type=range].s5 { background: linear-gradient(90deg, var(--a5) var(--pct,0%), #1f2535 var(--pct,0%)); }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 14px; height: 14px;
+      border-radius: 50%; border: 2px solid var(--bg); cursor: pointer;
+    }
+    input[type=range].s1::-webkit-slider-thumb { background: var(--a1); }
+    input[type=range].s2::-webkit-slider-thumb { background: var(--a2); }
+    input[type=range].s3::-webkit-slider-thumb { background: var(--a3); }
+    input[type=range].s4::-webkit-slider-thumb { background: var(--a4); }
+    input[type=range].s5::-webkit-slider-thumb { background: var(--a5); }
+    .val {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+      font-weight: 700; width: 54px; text-align: right; flex-shrink: 0;
+    }
+    .c1{color:var(--a1)} .c2{color:var(--a2)} .c3{color:var(--a3)}
+    .c4{color:var(--a4)} .c5{color:var(--a5)}
+
+    canvas { display: block; border-radius: 8px; background: #090b12; width: 100%; }
+
+    /* ── Equation bar ── */
+    .eq-row {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;
+    }
+    .eq-chip {
+      font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+      padding: 6px 12px; border-radius: 6px; border: 1px solid;
+      line-height: 1.5;
+    }
+    .eq-chip.e1 { color: var(--a4); border-color: rgba(199,125,255,0.25); background: rgba(199,125,255,0.06); }
+    .eq-chip.e2 { color: var(--a5); border-color: rgba(255,209,102,0.25); background: rgba(255,209,102,0.06); }
+    .eq-chip.e3 { color: var(--a3); border-color: rgba(127,255,107,0.25); background: rgba(127,255,107,0.06); }
+    .eq-chip.e4 { color: var(--a1); border-color: rgba(0,212,255,0.25); background: rgba(0,212,255,0.06); }
+    .eq-chip.e5 { color: var(--a2); border-color: rgba(255,107,53,0.25); background: rgba(255,107,53,0.06); }
+
+    /* ── Insight box ── */
+    .insight {
+      margin-top: 14px; padding: 12px 16px; border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+      border-left: 3px solid var(--a4); background: rgba(199,125,255,0.06);
+      color: var(--a4); line-height: 1.7; transition: all 0.25s;
+    }
+
+    /* ── Small-signal circuit canvas ── */
+    #circuitCanvas { background: #090b12; }
+  </style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<div class="wrap">
+  <a class="back" href="index.html">← Back to MOSFET Lab</a>
+
+  <header>
+    <div class="sim-num">SIM — 03</div>
+    <h1>Small-Signal Model<br><span>&amp; gm</span> Visualizer</h1>
+    <p>Transconductance · Output resistance · Voltage gain · Transit frequency</p>
+  </header>
+
+  <!-- ── Row 1: 3 live metric cards ── -->
+  <div class="grid-3">
+    <div class="card" style="border-color:rgba(199,125,255,0.2)">
+      <div class="card-title">Transconductance</div>
+      <div class="metric">
+        <div class="metric-val" id="gmVal" style="color:var(--a4)">—</div>
+        <div class="metric-unit">mA/V</div>
+        <div class="metric-label">gm = 2·Id / Vov = √(2·k·Id)</div>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(255,209,102,0.2)">
+      <div class="card-title">Output Resistance</div>
+      <div class="metric">
+        <div class="metric-val" id="roVal" style="color:var(--a5)">—</div>
+        <div class="metric-unit">kΩ</div>
+        <div class="metric-label">ro = 1 / (λ·Id)</div>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(127,255,107,0.2)">
+      <div class="card-title">Voltage Gain |Av|</div>
+      <div class="metric">
+        <div class="metric-val" id="avVal" style="color:var(--a3)">—</div>
+        <div class="metric-unit">V/V</div>
+        <div class="metric-label">|Av| = gm · ro</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Row 2: controls + small-signal circuit ── -->
+  <div class="grid-2">
+    <!-- Controls -->
+    <div class="card">
+      <div class="card-title">Device Parameters</div>
+      <div class="sliders">
+        <div class="slider-row">
+          <div class="slider-label">Vgs<small>Gate</small></div>
+          <input type="range" id="vgsSlider" class="s1" min="0" max="5" step="0.05" value="2.5">
+          <div class="val c1" id="vgsDisp">2.50V</div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label">Vth<small>Thresh</small></div>
+          <input type="range" id="vthSlider" class="s3" min="0.2" max="2.5" step="0.1" value="1.0">
+          <div class="val c3" id="vthDisp">1.0V</div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label">k<small>μCox·W/L</small></div>
+          <input type="range" id="kSlider" class="s4" min="0.1" max="5" step="0.1" value="1.0">
+          <div class="val c4" id="kDisp">1.0 mA/V²</div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label">λ<small>CLM</small></div>
+          <input type="range" id="lambdaSlider" class="s2" min="0.01" max="0.3" step="0.01" value="0.05">
+          <div class="val c2" id="lambdaDisp">0.05 V⁻¹</div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label">Cgs<small>Gate cap</small></div>
+          <input type="range" id="cgsSlider" class="s5" min="1" max="100" step="1" value="20">
+          <div class="val c5" id="cgsDisp">20 fF</div>
+        </div>
+      </div>
+
+      <div class="eq-row" style="margin-top:18px">
+        <div class="eq-chip e1">Vov = Vgs − Vth = <b id="vovEq">—</b></div>
+        <div class="eq-chip e4">Id = ½·k·Vov² = <b id="idEq">—</b> mA</div>
+        <div class="eq-chip e3">fT = gm/(2π·Cgs) = <b id="ftEq">—</b> GHz</div>
+      </div>
+
+      <div class="insight" id="insight">—</div>
+    </div>
+
+    <!-- Small-signal circuit diagram -->
+    <div class="card">
+      <div class="card-title">Small-Signal Equivalent Circuit</div>
+      <canvas id="circuitCanvas" height="210"></canvas>
+      <div class="eq-row" style="margin-top:12px">
+        <div class="eq-chip e5">vgs → gm·vgs (VCCS)</div>
+        <div class="eq-chip e2">ro = 1/(λ·Id)</div>
+        <div class="eq-chip e1">Av = −gm·(ro ∥ RD)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Row 3: gm vs Vgs chart ── -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">gm vs Vgs  (at fixed k, Vth)</div>
+      <canvas id="gmVgsCanvas" height="200"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">gm vs Id  (Technology curve)</div>
+      <canvas id="gmIdCanvas" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Row 4: Av vs λ + freq response ── -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">|Av| vs λ  (Channel-length modulation effect)</div>
+      <canvas id="avLambdaCanvas" height="180"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Transit frequency fT vs Vgs</div>
+      <canvas id="ftCanvas" height="180"></canvas>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+// ── Slider helpers ──────────────────────────────────────────────
+const sliders = {
+  vgs:    document.getElementById('vgsSlider'),
+  vth:    document.getElementById('vthSlider'),
+  k:      document.getElementById('kSlider'),
+  lambda: document.getElementById('lambdaSlider'),
+  cgs:    document.getElementById('cgsSlider'),
+};
+
+function setPct(sl) {
+  const mn=parseFloat(sl.min), mx=parseFloat(sl.max), v=parseFloat(sl.value);
+  sl.style.setProperty('--pct', ((v-mn)/(mx-mn)*100).toFixed(1)+'%');
+}
+
+function getVals() {
+  return {
+    Vgs:    parseFloat(sliders.vgs.value),
+    Vth:    parseFloat(sliders.vth.value),
+    k:      parseFloat(sliders.k.value),
+    lambda: parseFloat(sliders.lambda.value),
+    Cgs:    parseFloat(sliders.cgs.value) * 1e-15,  // fF → F
+  };
+}
+
+// ── Physics helpers ─────────────────────────────────────────────
+function calcId(Vgs, Vth, k) {
+  const vov = Vgs - Vth;
+  return vov > 0 ? 0.5 * k * vov * vov : 0; // mA (k in mA/V²)
+}
+function calcGm(Id, Vov, k) {
+  if (Vov <= 0) return 0;
+  return 2 * Id / Vov; // mA/V  (also = k*Vov)
+}
+function calcRo(lambda, Id) {
+  if (Id <= 0) return Infinity;
+  return 1 / (lambda * Id); // kΩ (Id in mA, lambda in V⁻¹)
+}
+
+// ── Canvas resize helper ────────────────────────────────────────
+function rsz(cvs, h) {
+  cvs.width  = cvs.offsetWidth || 400;
+  cvs.height = h || parseInt(cvs.getAttribute('height'));
+}
+
+// ── Axis draw helper ────────────────────────────────────────────
+function drawAxes(ctx, W, H, pl, pr, pt, pb, xLabel, yLabel, xTicks, yTicks) {
+  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pl,pt); ctx.lineTo(pl,H-pb); ctx.lineTo(W-pr,H-pb); ctx.stroke();
+  // x ticks
+  ctx.fillStyle = '#4a5570'; ctx.font = '9px JetBrains Mono, monospace';
+  xTicks.forEach(([v, label, x]) => {
+    ctx.fillText(label, x - ctx.measureText(label).width/2, H-pb+13);
+    ctx.strokeStyle='#1a2030'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x,H-pb); ctx.lineTo(x,H-pb+3); ctx.stroke();
+  });
+  // y ticks
+  yTicks.forEach(([v, label, y]) => {
+    ctx.fillStyle='#4a5570';
+    ctx.fillText(label, pl - ctx.measureText(label).width - 5, y+3);
+    ctx.strokeStyle='#1a2030'; ctx.setLineDash([2,4]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pl,y); ctx.lineTo(W-pr,y); ctx.stroke(); ctx.setLineDash([]);
+  });
+  ctx.fillStyle='#7a8090'; ctx.font='10px Syne, sans-serif';
+  ctx.fillText(xLabel, pl+(W-pl-pr)/2 - ctx.measureText(xLabel).width/2, H-2);
+  ctx.save(); ctx.translate(10, pt+(H-pt-pb)/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(yLabel, -ctx.measureText(yLabel).width/2, 0); ctx.restore();
+}
+
+// ── Draw operating point dot ────────────────────────────────────
+function drawDot(ctx, x, y, color='#fff') {
+  ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI*2);
+  ctx.fillStyle = color; ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1; ctx.stroke();
+  // crosshairs
+  ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  // (caller draws crosshairs for layout reasons)
+  ctx.setLineDash([]);
+}
+
+// ── gm vs Vgs ───────────────────────────────────────────────────
+function drawGmVgs(p) {
+  const cvs = document.getElementById('gmVgsCanvas');
+  rsz(cvs, 200);
+  const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width, H=cvs.height, pl=48, pr=16, pt=16, pb=30;
+  const gW=W-pl-pr, gH=H-pt-pb;
+  const VGS_MAX=5;
+
+  // max gm in view
+  const gmAtMax = p.k * (VGS_MAX - p.Vth);
+  const GM_MAX = Math.max(gmAtMax * 1.1, 0.5);
+
+  const mx = v => pl + (v/VGS_MAX)*gW;
+  const my = g => pt + gH - (g/GM_MAX)*gH;
+
+  // zone: cutoff
+  ctx.fillStyle='rgba(255,76,76,0.06)'; ctx.fillRect(mx(0), pt, mx(p.Vth)-mx(0), gH);
+  ctx.fillStyle='rgba(199,125,255,0.05)'; ctx.fillRect(mx(p.Vth), pt, gW-(mx(p.Vth)-pl), gH);
+
+  // Vth line
+  ctx.strokeStyle='rgba(127,255,107,0.3)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(mx(p.Vth),pt); ctx.lineTo(mx(p.Vth),pt+gH); ctx.stroke(); ctx.setLineDash([]);
+
+  // axes
+  const xT = [0,1,2,3,4,5].map(v=>([v, v, mx(v)]));
+  const yT = [0,0.25,0.5,0.75,1].map(f=>([f*GM_MAX, (f*GM_MAX).toFixed(1), my(f*GM_MAX)]));
+  drawAxes(ctx, W, H, pl, pr, pt, pb, 'Vgs (V)', 'gm (mA/V)', xT, yT);
+
+  // gm curve: gm = k*(Vgs-Vth) for Vgs>Vth
+  ctx.beginPath(); ctx.strokeStyle='var(--a4)'; ctx.lineWidth=2.2;
+  let first=true;
+  for(let px=0;px<=gW;px++){
+    const vgs=(px/gW)*VGS_MAX;
+    const vov=vgs-p.Vth;
+    const gm=vov>0 ? p.k*vov : 0;
+    const y=my(Math.min(gm,GM_MAX));
+    if(first){ctx.moveTo(pl+px,y);first=false;}else ctx.lineTo(pl+px,y);
+  }
+  ctx.stroke();
+
+  // operating point
+  const vov=p.Vgs-p.Vth;
+  const gm_op = vov>0 ? p.k*vov : 0;
+  const opX=mx(p.Vgs), opY=my(Math.min(gm_op,GM_MAX));
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(opX,pt+gH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(pl,opY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(opX, opY, 5.5, 0, Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+// ── gm vs Id ────────────────────────────────────────────────────
+function drawGmId(p) {
+  const cvs = document.getElementById('gmIdCanvas');
+  rsz(cvs, 200);
+  const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width,H=cvs.height,pl=48,pr=16,pt=16,pb=30;
+  const gW=W-pl-pr,gH=H-pt-pb;
+
+  const ID_MAX = 0.5 * p.k * Math.pow(Math.max(5-p.Vth,0), 2) * 1.1;
+  const gm_at_max = Math.sqrt(2*p.k*ID_MAX);
+  const GM_MAX = Math.max(gm_at_max*1.05, 0.2);
+  const mx = id => pl+(id/ID_MAX)*gW;
+  const my = gm => pt+gH-(gm/GM_MAX)*gH;
+
+  const xT=[0,0.25,0.5,0.75,1].map(f=>([f*ID_MAX,(f*ID_MAX).toFixed(2),mx(f*ID_MAX)]));
+  const yT=[0,0.25,0.5,0.75,1].map(f=>([f*GM_MAX,(f*GM_MAX).toFixed(1),my(f*GM_MAX)]));
+  drawAxes(ctx,W,H,pl,pr,pt,pb,'Id (mA)','gm (mA/V)',xT,yT);
+
+  // gm = sqrt(2*k*Id)
+  ctx.beginPath(); ctx.strokeStyle='#c77dff'; ctx.lineWidth=2.2;
+  let first=true;
+  for(let px=0;px<=gW;px++){
+    const id=(px/gW)*ID_MAX;
+    const gm=Math.sqrt(2*p.k*id);
+    const y=my(Math.min(gm,GM_MAX));
+    if(first){ctx.moveTo(pl+px,y);first=false;}else ctx.lineTo(pl+px,y);
+  }
+  ctx.stroke();
+
+  // tangent line at op point (slope = k/gm = 1/(2*Id/Vov) = d(gm)/d(Id))
+  const Id_op = calcId(p.Vgs, p.Vth, p.k);
+  const gm_op = Id_op>0 ? Math.sqrt(2*p.k*Id_op) : 0;
+  // tangent: gm = sqrt(2k*Id_op) + k/gm_op * (id - Id_op)
+  if(gm_op>0){
+    const slope = p.k / gm_op; // d(gm)/d(Id)
+    ctx.beginPath(); ctx.strokeStyle='rgba(199,125,255,0.3)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+    const id1=0, id2=ID_MAX;
+    ctx.moveTo(mx(id1), my(gm_op+slope*(id1-Id_op)));
+    ctx.lineTo(mx(id2), my(gm_op+slope*(id2-Id_op)));
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+
+  // operating point
+  const opX=mx(Id_op), opY=my(Math.min(gm_op,GM_MAX));
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(opX,pt+gH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(pl,opY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(opX,opY,5.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+// ── |Av| vs λ ───────────────────────────────────────────────────
+function drawAvLambda(p) {
+  const cvs = document.getElementById('avLambdaCanvas');
+  rsz(cvs, 180);
+  const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width,H=cvs.height,pl=52,pr=16,pt=14,pb=28;
+  const gW=W-pl-pr,gH=H-pt-pb;
+  const LAMBDA_MAX=0.3;
+
+  const Id_op = calcId(p.Vgs, p.Vth, p.k);
+  const Vov = p.Vgs - p.Vth;
+  const gm_op = calcGm(Id_op, Vov, p.k);
+
+  // |Av| = gm/lambda/Id_op = gm * ro
+  function av(lam) { return Id_op>0 ? gm_op/(lam*Id_op) : 0; }
+  const AV_MAX = av(0.005) * 1.05;
+  const mx = lam => pl+(lam/LAMBDA_MAX)*gW;
+  const my = a => pt+gH-(a/AV_MAX)*gH;
+
+  const xT=[0.05,0.1,0.15,0.2,0.25,0.3].map(v=>([v,v.toFixed(2),mx(v)]));
+  const yT=[0,0.25,0.5,0.75,1].map(f=>([f*AV_MAX,(f*AV_MAX).toFixed(0),my(f*AV_MAX)]));
+  drawAxes(ctx,W,H,pl,pr,pt,pb,'λ (V⁻¹)','|Av| (V/V)',xT,yT);
+
+  ctx.beginPath(); ctx.strokeStyle='#7fff6b'; ctx.lineWidth=2;
+  let first=true;
+  for(let px=0;px<=gW;px++){
+    const lam=0.001+(px/gW)*LAMBDA_MAX;
+    const a=av(lam);
+    const y=my(Math.min(a,AV_MAX));
+    if(first){ctx.moveTo(pl+px,y);first=false;}else ctx.lineTo(pl+px,y);
+  }
+  ctx.stroke();
+
+  // op point
+  const opX=mx(p.lambda), opY=my(Math.min(av(p.lambda),AV_MAX));
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(opX,pt+gH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(pl,opY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(opX,opY,5.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+// ── fT vs Vgs ───────────────────────────────────────────────────
+function drawFt(p) {
+  const cvs = document.getElementById('ftCanvas');
+  rsz(cvs, 180);
+  const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width,H=cvs.height,pl=52,pr=16,pt=14,pb=28;
+  const gW=W-pl-pr,gH=H-pt-pb;
+  const VGS_MAX=5;
+
+  function ft(vgs) {
+    const vov=vgs-p.Vth; if(vov<=0) return 0;
+    const id=0.5*p.k*vov*vov; // mA
+    const gm=2*id/vov; // mA/V
+    return (gm*1e-3)/(2*Math.PI*p.Cgs)/1e9; // GHz
+  }
+  const FT_MAX = ft(5)*1.1||1;
+  const mx = v => pl+(v/VGS_MAX)*gW;
+  const my = f => pt+gH-(f/FT_MAX)*gH;
+
+  ctx.fillStyle='rgba(255,76,76,0.05)'; ctx.fillRect(mx(0),pt,mx(p.Vth)-mx(0),gH);
+  ctx.strokeStyle='rgba(127,255,107,0.25)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(mx(p.Vth),pt); ctx.lineTo(mx(p.Vth),pt+gH); ctx.stroke(); ctx.setLineDash([]);
+
+  const xT=[0,1,2,3,4,5].map(v=>([v,v,mx(v)]));
+  const yT=[0,0.25,0.5,0.75,1].map(f=>([f*FT_MAX,(f*FT_MAX).toFixed(1),my(f*FT_MAX)]));
+  drawAxes(ctx,W,H,pl,pr,pt,pb,'Vgs (V)','fT (GHz)',xT,yT);
+
+  ctx.beginPath(); ctx.strokeStyle='#00d4ff'; ctx.lineWidth=2;
+  let first=true;
+  for(let px=0;px<=gW;px++){
+    const vgs=(px/gW)*VGS_MAX;
+    const f=ft(vgs);
+    const y=my(Math.min(f,FT_MAX));
+    if(first){ctx.moveTo(pl+px,y);first=false;}else ctx.lineTo(pl+px,y);
+  }
+  ctx.stroke();
+
+  const opX=mx(p.Vgs), ft_op=ft(p.Vgs), opY=my(Math.min(ft_op,FT_MAX));
+  ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=1; ctx.setLineDash([3,4]);
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(opX,pt+gH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(opX,opY); ctx.lineTo(pl,opY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); ctx.arc(opX,opY,5.5,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+}
+
+// ── Small-signal circuit diagram ────────────────────────────────
+function drawCircuit(p) {
+  const cvs = document.getElementById('circuitCanvas');
+  rsz(cvs, 210);
+  const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
+  const W=cvs.width, H=cvs.height;
+
+  // Layout constants
+  const LY = H*0.42;  // main wire y
+  const G_X = W*0.08; // gate node x
+  const S_X = W*0.92; // drain node x
+  const MID = W*0.5;
+
+  ctx.lineWidth = 1.8;
+  ctx.font = '11px JetBrains Mono, monospace';
+
+  // ── Ground symbols helper ──
+  function ground(ctx, x, y) {
+    ctx.strokeStyle='#4a5570'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y+10); ctx.stroke();
+    [12,8,4].forEach((w,i)=>{
+      ctx.beginPath(); ctx.moveTo(x-w/2,y+10+i*5); ctx.lineTo(x+w/2,y+10+i*5); ctx.stroke();
+    });
+  }
+
+  // ── Vgs voltage source (left) ──
+  const vs_cx = G_X + 30, vs_cy = LY + 35;
+  ctx.strokeStyle='rgba(0,212,255,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(vs_cx, vs_cy, 20, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle='#00d4ff'; ctx.font='10px JetBrains Mono,monospace';
+  ctx.fillText('vgs', vs_cx-10, vs_cy+4);
+  // wire from source to gate top node
+  ctx.strokeStyle='rgba(0,212,255,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(vs_cx, vs_cy-20); ctx.lineTo(vs_cx, LY); ctx.lineTo(G_X+60, LY); ctx.stroke();
+  // wire bottom to ground
+  ctx.beginPath(); ctx.moveTo(vs_cx, vs_cy+20); ctx.lineTo(vs_cx, vs_cy+36); ctx.stroke();
+  ground(ctx, vs_cx, vs_cy+36);
+  // gate label
+  ctx.fillStyle='#4a9970'; ctx.font='bold 10px Syne, sans-serif';
+  ctx.fillText('G', G_X+2, LY-6);
+
+  // ── Cgs capacitor ──
+  const cgs_x = G_X + 70;
+  ctx.strokeStyle='rgba(0,212,255,0.4)'; ctx.lineWidth=1.5;
+  // left plate
+  ctx.beginPath(); ctx.moveTo(cgs_x, LY-14); ctx.lineTo(cgs_x, LY+14); ctx.stroke();
+  // right plate
+  ctx.beginPath(); ctx.moveTo(cgs_x+8, LY-14); ctx.lineTo(cgs_x+8, LY+14); ctx.stroke();
+  // wires
+  ctx.beginPath(); ctx.moveTo(G_X+60, LY); ctx.lineTo(cgs_x, LY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cgs_x+8, LY); ctx.lineTo(cgs_x+8, LY+32); ctx.stroke();
+  ground(ctx, cgs_x+8, LY+32);
+  ctx.fillStyle='rgba(0,212,255,0.6)'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.fillText('Cgs', cgs_x-8, LY-20);
+
+  // main horizontal wire (gate to drain)
+  const wire_l = G_X+60+8; // after Cgs tap-off right plate
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(wire_l, LY); ctx.lineTo(MID-40, LY); ctx.stroke();
+
+  // ── VCCS: gm·vgs (center) ──
+  const vccs_cx=MID, vccs_cy=LY;
+  ctx.strokeStyle='rgba(199,125,255,0.7)'; ctx.lineWidth=1.8;
+  ctx.beginPath(); ctx.arc(vccs_cx, vccs_cy, 22, 0, Math.PI*2); ctx.stroke();
+  // arrow inside
+  ctx.fillStyle='rgba(199,125,255,0.8)';
+  ctx.beginPath(); ctx.moveTo(vccs_cx, vccs_cy-10); ctx.lineTo(vccs_cx-6, vccs_cy+6); ctx.lineTo(vccs_cx+6, vccs_cy+6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#c77dff'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.fillText('gm·vgs', vccs_cx-20, vccs_cy+36);
+  // wire top (to drain rail)
+  ctx.strokeStyle='rgba(199,125,255,0.5)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(vccs_cx, vccs_cy-22); ctx.lineTo(vccs_cx, LY-40); ctx.stroke();
+  // wire bottom to ground
+  ctx.beginPath(); ctx.moveTo(vccs_cx, vccs_cy+22); ctx.lineTo(vccs_cx, vccs_cy+55); ctx.stroke();
+  ground(ctx, vccs_cx, vccs_cy+55);
+
+  // ── ro resistor (right of VCCS) ──
+  const ro_x = MID+50, ro_top=LY-40, ro_bot=LY+40;
+  ctx.strokeStyle='rgba(255,209,102,0.7)'; ctx.lineWidth=1.8;
+  // zig-zag
+  ctx.beginPath();
+  const zz=[ro_top, ro_top+14, ro_top+20, ro_top+26, ro_top+32, ro_top+38, ro_top+44, ro_bot];
+  ctx.moveTo(ro_x, ro_top);
+  [1,2,3,4,5,6].forEach((i)=>{
+    const y=ro_top+i*11; const xo=(i%2===1?8:-8);
+    ctx.lineTo(ro_x+xo, y);
+  });
+  ctx.lineTo(ro_x, ro_bot);
+  ctx.stroke();
+  ctx.fillStyle='#ffd166'; ctx.font='9px JetBrains Mono,monospace';
+  ctx.fillText('ro', ro_x+12, LY+4);
+
+  // drain rail wire
+  const drain_y=LY-40;
+  ctx.strokeStyle='rgba(255,107,53,0.5)'; ctx.lineWidth=1.8;
+  ctx.beginPath(); ctx.moveTo(vccs_cx, drain_y); ctx.lineTo(ro_x, drain_y); ctx.stroke();
+  // wire from ro bot to ground
+  ctx.strokeStyle='rgba(255,209,102,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(ro_x, ro_bot); ctx.lineTo(ro_x, ro_bot+10); ctx.stroke();
+  ground(ctx, ro_x, ro_bot+10);
+
+  // Drain node & label
+  ctx.fillStyle='#ff6b35'; ctx.font='bold 10px Syne, sans-serif';
+  ctx.fillText('D', S_X-50, drain_y-6);
+  ctx.beginPath(); ctx.arc(ro_x, drain_y, 3.5, 0, Math.PI*2); ctx.fillStyle='#ffd166'; ctx.fill();
+
+  // output voltage label
+  ctx.fillStyle='rgba(127,255,107,0.7)'; ctx.font='10px JetBrains Mono,monospace';
+  ctx.fillText('vout = −gm·vgs·ro', ro_x-20, drain_y-16);
+
+  // Source node
+  ctx.fillStyle='#7fff6b'; ctx.font='bold 10px Syne, sans-serif';
+  ctx.fillText('S', G_X+2, LY+30);
+
+  // border frame
+  ctx.strokeStyle='rgba(199,125,255,0.08)'; ctx.lineWidth=1;
+  ctx.strokeRect(4, 4, W-8, H-8);
+}
+
+// ── Update all displays ─────────────────────────────────────────
+function update() {
+  Object.values(sliders).forEach(setPct);
+  const p = getVals();
+  document.getElementById('vgsDisp').textContent    = p.Vgs.toFixed(2)+'V';
+  document.getElementById('vthDisp').textContent    = p.Vth.toFixed(1)+'V';
+  document.getElementById('kDisp').textContent      = p.k.toFixed(1)+' mA/V²';
+  document.getElementById('lambdaDisp').textContent = p.lambda.toFixed(2)+' V⁻¹';
+  document.getElementById('cgsDisp').textContent    = (p.Cgs*1e15).toFixed(0)+' fF';
+
+  const Vov = p.Vgs - p.Vth;
+  const Id  = calcId(p.Vgs, p.Vth, p.k);
+  const gm  = calcGm(Id, Vov, p.k);
+  const ro  = calcRo(p.lambda, Id);
+  const Av  = (ro === Infinity) ? 0 : gm * ro;
+  const fT  = Id > 0 ? (gm*1e-3)/(2*Math.PI*p.Cgs)/1e9 : 0;
+
+  // Metric cards
+  document.getElementById('gmVal').textContent = gm.toFixed(3);
+  document.getElementById('roVal').textContent = (ro === Infinity) ? '∞' : ro.toFixed(1);
+  document.getElementById('avVal').textContent = Av.toFixed(1);
+
+  // Equations
+  document.getElementById('vovEq').textContent = Vov > 0 ? Vov.toFixed(3)+'V' : '< 0 (OFF)';
+  document.getElementById('idEq').textContent  = Id.toFixed(4);
+  document.getElementById('ftEq').textContent  = fT.toFixed(2);
+
+  // Insight
+  const ins = document.getElementById('insight');
+  if (Vov <= 0) {
+    ins.textContent = '⚠ Device is OFF (Vgs < Vth). gm = 0, ro → ∞. No amplification.';
+    ins.style.borderColor='#ff4c4c'; ins.style.background='rgba(255,76,76,0.06)'; ins.style.color='#ff6060';
+  } else if (gm < 0.5) {
+    ins.innerHTML = `Low Vov (${Vov.toFixed(2)}V) → weak gm. Increase Vgs or k (W/L ratio) for more gain. |Av| = gm·ro ≈ <b>${Av.toFixed(0)} V/V</b>.`;
+    ins.style.borderColor='var(--a5)'; ins.style.background='rgba(255,209,102,0.06)'; ins.style.color='var(--a5)';
+  } else {
+    ins.innerHTML = `gm = <b>${gm.toFixed(3)} mA/V</b> → each 1mV at gate produces ${gm.toFixed(3)}μA drain current. Gain |Av| = <b>${Av.toFixed(1)} V/V</b>. Transit freq fT = <b>${fT.toFixed(2)} GHz</b>.`;
+    ins.style.borderColor='var(--a4)'; ins.style.background='rgba(199,125,255,0.06)'; ins.style.color='var(--a4)';
+  }
+
+  // Redraw all canvases
+  drawGmVgs(p);
+  drawGmId(p);
+  drawAvLambda(p);
+  drawFt(p);
+  drawCircuit(p);
+}
+
+Object.values(sliders).forEach(s => s.addEventListener('input', update));
+window.addEventListener('resize', update);
+update();
+</script>
+</body>
+</html>
